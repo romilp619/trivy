@@ -62,18 +62,26 @@ func (p *Parser) Parse(_ context.Context, r xio.ReadSeekerAt) ([]ftypes.Package,
 }
 
 func pkgName(pin Pin, lockVersion int) string {
-	// Package.resolved v1 uses `RepositoryURL`
-	// v2 uses `Location`
+	// Package.resolved v1 uses `repositoryURL`.
+	// v2 and v3 use `location` (v3 also has originHash, which is not part of the name).
 	name := pin.RepositoryURL
 	if lockVersion > 1 {
 		name = pin.Loc
 	}
-	// Swift uses `https://github.com/<author>/<package>.git format
-	// `.git` suffix can be omitted (take a look happy test)
-	// Trailing slashes can be kept too, as in `https://github.com/<author>/<package>/` or `.../<package>//`
-	// Remove `https://`, every trailing `/` and `.git` to fit the same format
+	return normalizeRepoLocation(name)
+}
+
+// normalizeRepoLocation reduces a repository URL to the package name.
+// SwiftPM writes the URL verbatim, so it may end with a `.git` suffix, one or
+// more trailing slashes, or both (`.../Sparkle/`, `.../Sparkle//`,
+// `.../Sparkle.git/`, `.../Sparkle/.git`). A name that still ends in `/`
+// produces a PURL with an empty name (`pkg:swift/.../Sparkle/@2.9.6`).
+func normalizeRepoLocation(name string) string {
 	name = strings.TrimPrefix(name, "https://")
+	// Slash trim has to run again after `.git` is removed: `.../Sparkle/.git`
+	// becomes `.../Sparkle/` once the suffix is gone.
 	name = strings.TrimRight(name, "/")
 	name = strings.TrimSuffix(name, ".git")
+	name = strings.TrimRight(name, "/")
 	return name
 }

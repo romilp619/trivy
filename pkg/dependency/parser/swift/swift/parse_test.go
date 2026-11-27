@@ -4,10 +4,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/package-url/packageurl-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/purl"
+	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 func TestParser_Parse(t *testing.T) {
@@ -103,6 +106,75 @@ func TestParser_Parse(t *testing.T) {
 			},
 		},
 		{
+			// v1 stores the URL in `repositoryURL`. Same trailing-slash and `.git` shapes as v2.
+			name:      "v1 repositoryURL with trailing slashes and .git",
+			inputFile: "testdata/trailing-slash-v1-Package.resolved",
+			want: []ftypes.Package{
+				{
+					ID:        "github.com/Quick/Nimble@9.2.1",
+					Name:      "github.com/Quick/Nimble",
+					Version:   "9.2.1",
+					Locations: []ftypes.Location{{StartLine: 4, EndLine: 12}},
+				},
+				{
+					ID:        "github.com/ReactiveCocoa/ReactiveSwift@7.1.1",
+					Name:      "github.com/ReactiveCocoa/ReactiveSwift",
+					Version:   "7.1.1",
+					Locations: []ftypes.Location{{StartLine: 31, EndLine: 39}},
+				},
+				{
+					ID:        "github.com/apple/swift-numerics@1.1.1",
+					Name:      "github.com/apple/swift-numerics",
+					Version:   "1.1.1",
+					Locations: []ftypes.Location{{StartLine: 22, EndLine: 30}},
+				},
+				{
+					ID:        "github.com/sparkle-project/Sparkle@2.9.6",
+					Name:      "github.com/sparkle-project/Sparkle",
+					Version:   "2.9.6",
+					Locations: []ftypes.Location{{StartLine: 13, EndLine: 21}},
+				},
+			},
+		},
+		{
+			// v2 `location` where `.git` and trailing slashes are combined.
+			name:      "v2 location with .git and trailing slashes",
+			inputFile: "testdata/git-suffix-v2-Package.resolved",
+			want: []ftypes.Package{
+				{
+					ID:        "github.com/Quick/Nimble@9.2.1",
+					Name:      "github.com/Quick/Nimble",
+					Version:   "9.2.1",
+					Locations: []ftypes.Location{{StartLine: 12, EndLine: 20}},
+				},
+				{
+					ID:        "github.com/sparkle-project/Sparkle@2.9.6",
+					Name:      "github.com/sparkle-project/Sparkle",
+					Version:   "2.9.6",
+					Locations: []ftypes.Location{{StartLine: 3, EndLine: 11}},
+				},
+			},
+		},
+		{
+			// v3 keeps v2 pins and adds originHash. `location` is still the URL.
+			name:      "v3 location with trailing slashes and .git",
+			inputFile: "testdata/trailing-slash-v3-Package.resolved",
+			want: []ftypes.Package{
+				{
+					ID:        "github.com/apple/swift-numerics@1.1.1",
+					Name:      "github.com/apple/swift-numerics",
+					Version:   "1.1.1",
+					Locations: []ftypes.Location{{StartLine: 13, EndLine: 21}},
+				},
+				{
+					ID:        "github.com/sparkle-project/Sparkle@2.9.6",
+					Name:      "github.com/sparkle-project/Sparkle",
+					Version:   "2.9.6",
+					Locations: []ftypes.Location{{StartLine: 4, EndLine: 12}},
+				},
+			},
+		},
+		{
 			name:      "empty",
 			inputFile: "testdata/empty-Package.resolved",
 			want:      nil,
@@ -118,6 +190,122 @@ func TestParser_Parse(t *testing.T) {
 			gotPkgs, _, err := parser.Parse(t.Context(), f)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, gotPkgs)
+
+			for _, pkg := range gotPkgs {
+				got, err := purl.New(ftypes.Swift, types.Metadata{}, pkg)
+				require.NoError(t, err)
+				require.NotEmpty(t, got.Name)
+				assert.Equal(t, "pkg:swift/"+pkg.Name+"@"+pkg.Version, got.String())
+				_, err = packageurl.FromString(got.String())
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func Test_pkgName(t *testing.T) {
+	const want = "github.com/sparkle-project/Sparkle"
+	tests := []struct {
+		name        string
+		lockVersion int
+		pin         Pin
+		want        string
+	}{
+		{
+			name:        "v1 single trailing slash",
+			lockVersion: 1,
+			pin:         Pin{RepositoryURL: "https://github.com/sparkle-project/Sparkle/"},
+			want:        want,
+		},
+		{
+			name:        "v1 multiple trailing slashes",
+			lockVersion: 1,
+			pin:         Pin{RepositoryURL: "https://github.com/sparkle-project/Sparkle//"},
+			want:        want,
+		},
+		{
+			name:        "v1 three trailing slashes",
+			lockVersion: 1,
+			pin:         Pin{RepositoryURL: "https://github.com/sparkle-project/Sparkle///"},
+			want:        want,
+		},
+		{
+			name:        "v2 single trailing slash",
+			lockVersion: 2,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle/"},
+			want:        want,
+		},
+		{
+			name:        "v2 multiple trailing slashes",
+			lockVersion: 2,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle//"},
+			want:        want,
+		},
+		{
+			name:        "v3 multiple trailing slashes",
+			lockVersion: 3,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle//"},
+			want:        want,
+		},
+		{
+			name:        "v2 .git suffix",
+			lockVersion: 2,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle.git"},
+			want:        want,
+		},
+		{
+			name:        "v2 .git suffix and one trailing slash",
+			lockVersion: 2,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle.git/"},
+			want:        want,
+		},
+		{
+			name:        "v1 .git suffix and multiple trailing slashes",
+			lockVersion: 1,
+			pin:         Pin{RepositoryURL: "https://github.com/sparkle-project/Sparkle.git//"},
+			want:        want,
+		},
+		{
+			name:        "v1 slash before .git",
+			lockVersion: 1,
+			pin:         Pin{RepositoryURL: "https://github.com/sparkle-project/Sparkle/.git"},
+			want:        want,
+		},
+		{
+			name:        "v2 slash before .git and a trailing slash",
+			lockVersion: 2,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle/.git/"},
+			want:        want,
+		},
+		{
+			name:        "v3 slash before .git and multiple trailing slashes",
+			lockVersion: 3,
+			pin:         Pin{Loc: "https://github.com/sparkle-project/Sparkle/.git//"},
+			want:        want,
+		},
+		{
+			name:        "v1 uses repositoryURL, not location",
+			lockVersion: 1,
+			pin: Pin{
+				RepositoryURL: "https://github.com/sparkle-project/Sparkle/",
+				Loc:           "https://github.com/wrong/Wrong//",
+			},
+			want: want,
+		},
+		{
+			name:        "v2 uses location, not repositoryURL",
+			lockVersion: 2,
+			pin: Pin{
+				RepositoryURL: "https://github.com/wrong/Wrong.git/",
+				Loc:           "https://github.com/sparkle-project/Sparkle//",
+			},
+			want: want,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, pkgName(tt.pin, tt.lockVersion))
 		})
 	}
 }
