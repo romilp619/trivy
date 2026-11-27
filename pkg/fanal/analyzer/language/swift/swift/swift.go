@@ -18,7 +18,9 @@ func init() {
 }
 
 const (
-	version = 2
+	// v3: package names drop a trailing slash left behind by a `.git` suffix
+	// (`.../pkg/.git` and `.../pkg/.git/`), not only slashes at the end of the URL.
+	version = 3
 )
 
 // swiftLockAnalyzer analyzes Package.resolved files

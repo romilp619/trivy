@@ -257,6 +257,81 @@ func TestNewPackageURL(t *testing.T) {
 			},
 		},
 		{
+			name: "swift package normalized from a trailing-slash URL",
+			typ:  ftypes.Swift,
+			pkg: ftypes.Package{
+				ID:      "github.com/sparkle-project/Sparkle@2.9.6",
+				Name:    "github.com/sparkle-project/Sparkle",
+				Version: "2.9.6",
+			},
+			want: &purl.PackageURL{
+				Type:      packageurl.TypeSwift,
+				Namespace: "github.com/sparkle-project",
+				Name:      "Sparkle",
+				Version:   "2.9.6",
+			},
+		},
+		{
+			name: "swift package name with one trailing slash",
+			typ:  ftypes.Swift,
+			pkg: ftypes.Package{
+				ID:      "github.com/sparkle-project/Sparkle/@2.9.6",
+				Name:    "github.com/sparkle-project/Sparkle/",
+				Version: "2.9.6",
+			},
+			want: &purl.PackageURL{
+				Type:      packageurl.TypeSwift,
+				Namespace: "github.com/sparkle-project",
+				Name:      "Sparkle",
+				Version:   "2.9.6",
+			},
+		},
+		{
+			name: "swift package name with multiple trailing slashes",
+			typ:  ftypes.Swift,
+			pkg: ftypes.Package{
+				ID:      "github.com/sparkle-project/Sparkle//@2.9.6",
+				Name:    "github.com/sparkle-project/Sparkle//",
+				Version: "2.9.6",
+			},
+			want: &purl.PackageURL{
+				Type:      packageurl.TypeSwift,
+				Namespace: "github.com/sparkle-project",
+				Name:      "Sparkle",
+				Version:   "2.9.6",
+			},
+		},
+		{
+			name: "swift package name with .git and trailing slashes",
+			typ:  ftypes.Swift,
+			pkg: ftypes.Package{
+				ID:      "github.com/sparkle-project/Sparkle.git//@2.9.6",
+				Name:    "github.com/sparkle-project/Sparkle.git//",
+				Version: "2.9.6",
+			},
+			want: &purl.PackageURL{
+				Type:      packageurl.TypeSwift,
+				Namespace: "github.com/sparkle-project",
+				Name:      "Sparkle",
+				Version:   "2.9.6",
+			},
+		},
+		{
+			name: "swift package name with a slash before .git",
+			typ:  ftypes.Swift,
+			pkg: ftypes.Package{
+				ID:      "github.com/sparkle-project/Sparkle/.git@2.9.6",
+				Name:    "github.com/sparkle-project/Sparkle/.git/",
+				Version: "2.9.6",
+			},
+			want: &purl.PackageURL{
+				Type:      packageurl.TypeSwift,
+				Namespace: "github.com/sparkle-project",
+				Name:      "Sparkle",
+				Version:   "2.9.6",
+			},
+		},
+		{
 			name: "cocoapods package",
 			typ:  ftypes.Cocoapods,
 			pkg: ftypes.Package{

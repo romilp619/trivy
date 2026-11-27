@@ -421,6 +421,13 @@ func parseComposer(pkgName string) (string, string) {
 
 // ref. https://github.com/package-url/purl-spec/blob/a748c36ad415c8aeffe2b8a4a5d8a50d16d6d85f/PURL-TYPES.rst#swift
 func parseSwift(pkgName string) (string, string) {
+	// Package.resolved keeps the repository URL verbatim. A leftover trailing
+	// slash (`.../Sparkle/`, `.../Sparkle//`) or one hidden by `.git`
+	// (`.../Sparkle/.git`) makes the name segment empty, and packageurl then
+	// rejects the PURL with "purl is missing name".
+	pkgName = strings.TrimRight(pkgName, "/")
+	pkgName = strings.TrimSuffix(pkgName, ".git")
+	pkgName = strings.TrimRight(pkgName, "/")
 	return parsePkgName(pkgName)
 }
 
